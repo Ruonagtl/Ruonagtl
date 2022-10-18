@@ -1,0 +1,137 @@
+Description: This template deploys a VPC, with a public subnet in one Availability Zone. It deploys an internet gateway, with a default route on the public subnets.
+
+Parameters:
+  VpcCIDR: 
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 172.31.0.0/16
+
+  PublicSubnetCIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the Availability Zone
+    Type: String
+    Default: 172.31.0.0/24
+
+  InstanceType:
+    Description: Instance Type
+    Type: String
+    Default: t2.micro 
+
+  SubnetAZ:
+    Type: String
+    Default: "us-east-1c"
+
+  SubnetCirdBlock:
+    Type: String
+    Default: 172.31.0.0/20
+    Description: Please enter your CidrBlock
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock:
+        Ref: VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+          - Key: CidrBlockkey
+            Value: CidrBlockvalue
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: 
+        Ref: VPC
+      AvailabilityZone:
+        Ref: SubnetAZ
+      CidrBlock:
+        Ref: SubnetCirdBlock
+      MapPublicIpOnLaunch: True
+      Tags:
+      - Key: subnetkey
+        Value: subnetvalue
+
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+          - Key: InternetGatewaykey
+            Value: InternetGatewayvalue
+
+  GatewayToInternet:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: 
+        Ref: VPC
+      InternetGatewayId:
+        Ref: InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: 
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: Public
+
+  PublicRoute:   
+    Type: AWS::EC2::Route
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId: 
+        Ref: PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: 
+        Ref: InternetGateway
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroup
+      VpcId: 
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: SName
+          Value: SecurityGroup
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-026b57f3c383c2eec
+      AvailabilityZone:
+        Ref: SubnetAZ
+      InstanceType: t2.micro
+      KeyName: Edith1
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: True
+          DeviceIndex: 0
+          GroupSet:
+            - Ref: SecurityGroup
+          SubnetId: 
+            Ref: PublicSubnet
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin /bash
+            yum update -y
+            yum -y install httpd
+            systemctl enable httpd
+            systemctl start httpd.service
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: 
+        Ref: PublicSubnet
+      RouteTableId:
+        Ref: PublicRouteTable
+
+
+
+        
